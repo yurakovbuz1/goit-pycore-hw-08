@@ -1,3 +1,4 @@
+import pickle
 from collections import UserDict
 from datetime import datetime, date, timedelta
 from colorama import Fore
@@ -41,8 +42,6 @@ class BirthdayAlreadyExistsError(Exception):
         return f"{Fore.RED}{self.name}'s birthday is already set.{Fore.RESET} Use '{Fore.GREEN}change-birthday{Fore.RESET}' to edit the date."
 
 class BirthdayNotSetError(Exception):
-    # ?? Хотів використати також для change-birthday, але подумав, що буде більш user-friednly зразу додавати дату народження, навіть якщо вона не була вказана до цього.
-    # це ок? чи краще бути строгим в цьому питанні?
     def __init__(self, name: str) -> None:
         self.name = name.casefold().capitalize()
         super().__init__(name)
@@ -105,10 +104,8 @@ class Record:
     
     def add_birthday(self, birthday: str) -> None:
         self.birthday = Birthday(birthday)
-        # print(f"{Fore.GREEN}Birthday date added.{Fore.RESET}")
     
     def change_birthday(self, birthday: str) -> None:
-        # See comment in BirthdayNotSetError
         self.birthday = Birthday(birthday)
         print(f"{Fore.GREEN}Birthday date updated.{Fore.RESET}")
 
@@ -222,13 +219,6 @@ def show_all(book: AddressBook) -> str:
     if not book:
         raise EmptyDictError
     print(book)
-    # if contacts:
-    #     heading_message = f"{Fore.YELLOW}Your contact list:{Fore.RESET}"
-    #     contacts_list = [f"\n - {key}: {contacts.get(key)}" for key in contacts.keys()]
-    #     final_list = [heading_message] + contacts_list
-    #     return "".join(final_list)
-    # else:
-    #     raise ValueError("no contacts")
 
 @input_error
 def add_birthday(args, book: AddressBook) -> None:
@@ -255,7 +245,6 @@ def change_birthday(args, book: AddressBook) -> None:
     if not record:
         raise ValueError(f"Record with name '{name}' was not found.")
     record.change_birthday(birthday)
-    # print(f"{Fore.GREEN}{name.casefold().capitalize()}'s birthday date updated..{Fore.RESET}")
     
 @input_error
 def show_birthday(args, book: AddressBook) -> Birthday:
@@ -303,52 +292,69 @@ def get_upcoming_birthdays(book: AddressBook) -> list:
             congratulate_users.append({name: birthday_this_year})
     return congratulate_users
 
+def load_data(filename="addressbook.pkl"):
+    try:
+        with open(filename, "rb") as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        return AddressBook()
+    
+def save_data(book, filename="addressbook.pkl"):
+    with open(filename, "wb") as f:
+        pickle.dump(book, f)
+
 if __name__ == "__main__":
-    book = AddressBook()
+    book = load_data()
+    # book = load_data("abcd.pkl")
     print(f"{Fore.YELLOW}Welcome to the assistant bot!{Fore.RESET}")
+    try:
+        while True:
+            user_input = input("Enter a command: ").strip().casefold()
+            if len(user_input) < 1:
+                print(f"{Fore.RED}Too few arguments were given.{Fore.RESET} Use '{Fore.GREEN}help{Fore.RESET}' for additional info.")
+                continue
+            
+            command, args = parse_input(user_input)
 
-    while True:
-        user_input = input("Enter a command: ").strip().casefold()
-        if len(user_input) < 1:
-            print(f"{Fore.RED}Too few arguments were given.{Fore.RESET} Use '{Fore.GREEN}help{Fore.RESET}' for additional info.")
-            continue
-        
-        command, args = parse_input(user_input)
-
-        match command:
-            case "hello":
-                print(f"{Fore.YELLOW}How can I help you?{Fore.RESET}")
-            case "add":
-                add_contact(args, book)
-            case "change":
-                change_contact(args, book)
-            case "phone":
-                show_phone(args, book)
-            case "all":
-                show_all(book)
-            case "add-birthday":
-                add_birthday(args, book)
-            case "change-birthday":
-                change_birthday(args, book)
-            case "show-birthday":
-                show_birthday(args, book)
-            case "birthdays":
-                birthdays(book)
-            case "close" | "exit":
-                print(f"{Fore.YELLOW}Goodbye!{Fore.RESET}")
-                break
-            case "help":
-                print(f"""
+            match command:
+                case "hello":
+                    print(f"{Fore.YELLOW}How can I help you?{Fore.RESET}")
+                case "add":
+                    add_contact(args, book)
+                case "change":
+                    change_contact(args, book)
+                case "phone":
+                    show_phone(args, book)
+                case "all":
+                    show_all(book)
+                case "add-birthday":
+                    add_birthday(args, book)
+                case "change-birthday":
+                    change_birthday(args, book)
+                case "show-birthday":
+                    show_birthday(args, book)
+                case "birthdays":
+                    birthdays(book)
+                case "close" | "exit":
+                    save_data(book)
+                    # save_data(book, "abcd.pkl")
+                    print(f"{Fore.YELLOW}Goodbye!{Fore.RESET}")
+                    break
+                case "help":
+                    print(f"""
 The following commands are available:
-    * {Fore.GREEN + 'add [username] [phone_number]':<45}{Fore.RESET} - add a contact to the contact list. note: phone number must consist of 10 digits
-    * {Fore.GREEN + 'change [username] [new_phone_number]':<45}{Fore.RESET} - change an already existing contact
-    * {Fore.GREEN + 'phone [username]':<45}{Fore.RESET} - get to know a phone number by the contact's username
-    * {Fore.GREEN + 'add-birthday [username] [birthday]':<45}{Fore.RESET} - set a birthday date for a contact
-    * {Fore.GREEN + 'change-birthday [username] [new_birthday]':<45}{Fore.RESET} - change birthday date for a contact
-    * {Fore.GREEN + 'show-birthday [username]':<45}{Fore.RESET} - get to know the birthday date of the contact
-    * {Fore.GREEN + 'birthdays':<45}{Fore.RESET} - get to know birthdays from your address book for upcoming week
-    * {Fore.GREEN + 'all':<45}{Fore.RESET} - get all contacts from the contact list
-    * {Fore.GREEN + 'exit':<45}{Fore.RESET} - close the program
-    * {Fore.GREEN + 'close':<45}{Fore.RESET} - close the program""")
-            case _:
-                print(f"{Fore.RED}Unknown command was given.{Fore.RESET} Use '{Fore.GREEN}help{Fore.RESET}' for additional info.")
+    * {Fore.GREEN + 'add [username] [phone_number]':<60}{Fore.RESET} - add a contact to the contact list. note: phone number must consist of 10 digits
+    * {Fore.GREEN + 'change [username] [old_phone_number] [new_phone_number]':<60}{Fore.RESET} - change an already existing contact
+    * {Fore.GREEN + 'phone [username]':<60}{Fore.RESET} - get to know a phone number by the contact's username
+    * {Fore.GREEN + 'add-birthday [username] [birthday]':<60}{Fore.RESET} - set a birthday date for a contact
+    * {Fore.GREEN + 'change-birthday [username] [new_birthday]':<60}{Fore.RESET} - change birthday date for a contact
+    * {Fore.GREEN + 'show-birthday [username]':<60}{Fore.RESET} - get to know the birthday date of the contact
+    * {Fore.GREEN + 'birthdays':<60}{Fore.RESET} - get to know birthdays from your address book for upcoming week
+    * {Fore.GREEN + 'all':<60}{Fore.RESET} - get all contacts from the contact list
+    * {Fore.GREEN + 'exit':<60}{Fore.RESET} - close the program
+    * {Fore.GREEN + 'close':<60}{Fore.RESET} - close the program""")
+                case _:
+                    print(f"{Fore.RED}Unknown command was given.{Fore.RESET} Use '{Fore.GREEN}help{Fore.RESET}' for additional info.")
+    except KeyboardInterrupt:
+        save_data(book)
+        # save_data(book, "abcd.pkl")
